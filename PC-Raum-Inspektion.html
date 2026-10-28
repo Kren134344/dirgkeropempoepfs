@@ -1,0 +1,1756 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>PC-Raum-Inspektion</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: sticky header above a column of checklist sections (room, climate, security, power,
+     per-PC, issues, evidence, closing); each chip-style card shares one active note panel site-wide */
+  :root {
+    --bg: #f3f5f3;
+    --surface: #ffffff;
+    --surface-2: #eaede9;
+    --ink: #1a2420;
+    --muted: #5c6b63;
+    --line: #d7ddd6;
+    --accent: #2a6b63;
+    --accent-ink: #e9f3f1;
+    --ok: #2f7d4f;
+    --ok-bg: #e4f3e8;
+    --fault: #b43b2a;
+    --fault-bg: #fbe8e3;
+    --open: #9a7b1f;
+    --open-bg: #f6eed7;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121915;
+      --surface: #19221c;
+      --surface-2: #212b24;
+      --ink: #e7ece8;
+      --muted: #93a39a;
+      --line: #2b352e;
+      --accent: #5fb3a6;
+      --accent-ink: #0d1a17;
+      --ok: #6cc98f;
+      --ok-bg: #163322;
+      --fault: #e58b78;
+      --fault-bg: #3a2019;
+      --open: #e3c270;
+      --open-bg: #352b14;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121915;
+    --surface: #19221c;
+    --surface-2: #212b24;
+    --ink: #e7ece8;
+    --muted: #93a39a;
+    --line: #2b352e;
+    --accent: #5fb3a6;
+    --accent-ink: #0d1a17;
+    --ok: #6cc98f;
+    --ok-bg: #163322;
+    --fault: #e58b78;
+    --fault-bg: #3a2019;
+    --open: #e3c270;
+    --open-bg: #352b14;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 0;
+  }
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+
+  header.top {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 10;
+    background: var(--bg);
+    padding-top: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top, 0px);
+    z-index: 10;
+    background: var(--bg);
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  h1 { font-size: 22px; font-weight: 650; }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.02em;
+  }
+  .field select, .field input[type="text"], .field input[type="date"], .field input[type="time"] {
+    width: 100%;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .field textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 13.5px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    resize: vertical;
+  }
+  .field select:focus, .field input:focus, .field textarea:focus, button:focus-visible, .chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .stats {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    flex: 1 1 70px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    min-width: 0;
+  }
+  .stat .n { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 600; line-height: 1.1; }
+  .stat .l { font-size: 10.5px; color: var(--muted); letter-spacing: 0.03em; text-transform: uppercase; margin-top: 2px; }
+  .stat.ok .n { color: var(--ok); }
+  .stat.fault .n { color: var(--fault); }
+  .stat.open .n { color: var(--open); }
+
+  main { padding-bottom: 28px; }
+
+  .pc-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+
+  .pc-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 12px 10px;
+  }
+  .pc-card.has-fault { border-color: color-mix(in srgb, var(--fault) 45%, var(--line)); }
+
+  .pc-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+  .pc-name {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 14px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    color: var(--ink);
+    width: 9ch;
+    min-width: 0;
+    padding: 2px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  .pc-name:focus { outline: none; border-bottom-color: var(--accent); }
+  .pc-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--open-bg); border: 1px solid var(--open); flex: none; }
+  .pc-status-dot.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .pc-status-dot.fault { background: var(--fault-bg); border-color: var(--fault); }
+  .pc-remove {
+    margin-left: auto;
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  .pc-remove:hover { background: var(--surface-2); color: var(--fault); }
+
+  .chip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 6px;
+  }
+  .chip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    padding: 8px 30px 8px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+    min-width: 0;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chip .mark { flex: none; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent; }
+  .chip span.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip[data-state="ok"] { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+  .chip[data-state="ok"] .mark { border-color: var(--ok); background: var(--ok); color: var(--ok-bg); }
+  .chip[data-state="fault"] { background: var(--fault-bg); border-color: var(--fault); color: var(--fault); }
+  .chip[data-state="fault"] .mark { border-color: var(--fault); background: var(--fault); color: var(--fault-bg); }
+
+  .note-toggle {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--fault);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .note-toggle.active { background: var(--fault); color: var(--fault-bg); }
+  .note-toggle:hover { background: color-mix(in srgb, var(--fault) 20%, transparent); }
+  .note-toggle.active:hover { background: var(--fault); }
+  .chip-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  .chip-remove:hover { background: var(--surface); color: var(--fault); }
+  .note-toggle .has-text-dot {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--fault);
+  }
+  .note-toggle.active .has-text-dot { background: var(--fault-bg); }
+
+  .item-note {
+    margin-top: 9px;
+    animation: note-in 0.12s ease-out;
+  }
+  @keyframes note-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
+  .item-note .item-note-label {
+    font-size: 11px;
+    color: var(--fault);
+    margin-bottom: 4px;
+    font-weight: 560;
+  }
+  .item-note textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 13px;
+    min-height: 56px;
+    padding: 7px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--fault);
+    background: var(--surface-2);
+    color: var(--ink);
+    resize: vertical;
+  }
+  .item-note textarea::placeholder { color: var(--muted); }
+
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  button.btn, label.btn {
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 560;
+    padding: 9px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+  }
+  button.btn:hover, label.btn:hover { background: var(--surface-2); }
+  button.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.btn.primary:hover { filter: brightness(1.06); }
+  button.btn.ghost { background: transparent; color: var(--muted); border-color: transparent; }
+
+  .export-bar {
+    position: sticky;
+    bottom: 0;
+    margin: 18px calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 0 calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+    padding: 10px max(16px, env(safe-area-inset-left, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-right, 0px));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .export-bar .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .toast {
+    font-size: 12.5px;
+    color: var(--ok);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+  .hint-text {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+    display: block;
+  }
+
+  .legend {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 22px 0 4px;
+    flex-wrap: wrap;
+  }
+  .section-head h2 { font-size: 13px; font-weight: 650; letter-spacing: 0.01em; }
+  .section-head .sub { font-size: 11px; color: var(--muted); }
+  .section-head.first { margin-top: 14px; }
+
+  .inline-add {
+    display: flex;
+    gap: 6px;
+    margin-top: 9px;
+  }
+  .inline-add input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 12.5px;
+    padding: 7px 9px;
+    border-radius: 7px;
+    border: 1px dashed var(--line);
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .inline-add input::placeholder { color: var(--muted); }
+  .inline-add button {
+    flex: none;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 560;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .inline-add button:hover { background: var(--surface-2); }
+
+  .general-note { margin-top: 20px; }
+  .general-note h2 { font-size: 13px; font-weight: 650; margin-bottom: 3px; }
+  .general-note .sub { font-size: 11px; color: var(--muted); margin-bottom: 8px; display: block; }
+  .general-note textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 13.5px;
+    min-height: 90px;
+    padding: 10px 11px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    resize: vertical;
+  }
+  .general-note textarea::placeholder { color: var(--muted); }
+
+  .issue-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-top: 2px;
+  }
+  .issue-grid .field.span-all { grid-column: 1 / -1; }
+  .status-row { display: flex; align-items: center; gap: 8px; margin-top: 11px; }
+  .status-row-label { font-size: 11px; color: var(--muted); }
+  .status-chip {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .status-chip.st-fault { background: var(--fault-bg); color: var(--fault); border-color: var(--fault); }
+  .status-chip.st-open { background: var(--open-bg); color: var(--open); border-color: var(--open); }
+  .status-chip.st-ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+
+  .photo-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .photo-thumb { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); flex: none; }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-remove {
+    position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%;
+    border: none; background: rgba(0,0,0,0.55); color: #fff; font-size: 11px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  .history-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .history-card .info { flex: 1; min-width: 0; }
+  .history-card .info .main { font-size: 13.5px; font-weight: 600; }
+  .history-card .info .sub2 { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .history-card .actions { display: flex; gap: 6px; flex: none; }
+  .history-card .actions button {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 560;
+    padding: 6px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .history-card .actions button.load { color: var(--accent); border-color: var(--accent); }
+  .history-card .actions button.del { color: var(--fault); }
+  .history-card.current { border-color: var(--accent); }
+  .history-badge {
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 1px 7px;
+    flex: none;
+  }
+  .history-empty { font-size: 12px; color: var(--muted); padding: 2px 2px 0; }
+  .save-toast { color: var(--accent); }
+  .save-status { font-size: 11px; color: var(--muted); }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;650&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<header class="top">
+  <div class="eyebrow">Landkreis Gifhorn · Systemadministration</div>
+  <div class="title-row">
+    <h1>PC-Raum-Inspektion</h1>
+  </div>
+  <div class="meta-grid">
+    <div class="field">
+      <label for="room">Raum</label>
+      <select id="room">
+        <option>E66</option>
+        <option>E69</option>
+        <option>E73a</option>
+        <option>M66</option>
+        <option>103</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="date">Datum</label>
+      <input type="date" id="date">
+    </div>
+    <div class="field">
+      <label for="time">Uhrzeit</label>
+      <input type="time" id="time">
+    </div>
+    <div class="field">
+      <label for="inspector">Kontrolliert von</label>
+      <input type="text" id="inspector" placeholder="z. B. Eric, Ian, Tamara">
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n mono" id="statTotal">0</div><div class="l">PCs</div></div>
+    <div class="stat ok"><div class="n mono" id="statOk">0</div><div class="l">OK</div></div>
+    <div class="stat fault"><div class="n mono" id="statFault">0</div><div class="l">Defekt</div></div>
+    <div class="stat open"><div class="n mono" id="statOpen">0</div><div class="l">Offen</div></div>
+  </div>
+</header>
+
+<main>
+  <div class="section-head first">
+    <h2>Gespeicherte Protokolle</h2>
+    <span class="sub">Frühere Kontrollen auf diesem iPad – zum Fortsetzen oder Nachschlagen</span>
+  </div>
+  <div class="pc-list" id="historyList"></div>
+  <div class="add-row">
+    <button class="btn ghost" id="newFromHistory">+ Neues, leeres Protokoll</button>
+  </div>
+
+  <div class="section-head">
+    <h2>1. Raumausstattung</h2>
+    <span class="sub">Lehrer-PC, Netzwerk &amp; Mobiliar – einmal pro Raum</span>
+  </div>
+  <div class="pc-list" id="roomList"></div>
+
+  <div class="section-head">
+    <h2>2. Einzelplätze</h2>
+    <span class="sub" id="pcCountSub">PCs im Raum</span>
+  </div>
+  <div class="pc-list" id="pcList"></div>
+
+  <div class="add-row">
+    <button class="btn" id="addPc">+ PC hinzufügen</button>
+    <button class="btn ghost" id="resetAll">Neue Kontrolle (zurücksetzen)</button>
+  </div>
+  <div class="inline-add">
+    <input type="text" id="addItemAllInput" placeholder="Eigener Prüfpunkt für alle PCs, z. B. Kopfhörerbuchse">
+    <button id="addItemAllBtn">+ für alle PCs</button>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--open)"></span>Offen – tippen zum Prüfen</span>
+    <span><span class="dot" style="background:var(--ok)"></span>OK</span>
+    <span><span class="dot" style="background:var(--fault)"></span>Defekt – ✎ tippen für Notiz</span>
+  </div>
+
+  <div class="section-head">
+    <h2>3. Raumklima &amp; Umgebungsbedingungen</h2>
+    <span class="sub">Temperatur, Lüftung, Sauberkeit</span>
+  </div>
+  <div class="pc-list" id="climateList"></div>
+
+  <div class="section-head">
+    <h2>4. Sicherheit &amp; Zutrittsschutz</h2>
+    <span class="sub">Tür, Zugangskontrolle, Brandschutz, Fluchtwege</span>
+  </div>
+  <div class="pc-list" id="securityList"></div>
+
+  <div class="section-head">
+    <h2>5. Stromversorgung &amp; Verkabelung</h2>
+    <span class="sub">Steckdosen, Kabelführung, USV</span>
+  </div>
+  <div class="pc-list" id="powerList"></div>
+  <span class="hint-text" style="margin-top:6px;">Hinweis: Elektrische Prüfungen sollten nur durch entsprechend qualifizierte Personen durchgeführt werden.</span>
+
+  <div class="section-head">
+    <h2>6. Mängel &amp; Maßnahmen</h2>
+    <span class="sub">Beschreibung, Position, Dringlichkeit, Maßnahme, Zuständigkeit, Termin, Status</span>
+  </div>
+  <div class="pc-list" id="issueList"></div>
+  <div class="add-row">
+    <button class="btn" id="addIssue">+ Mangel hinzufügen</button>
+  </div>
+
+  <div class="section-head">
+    <h2>Behoben / Reparaturen</h2>
+    <span class="sub">Welcher PC bzw. Bereich wurde repariert und was wurde gemacht</span>
+  </div>
+  <div class="pc-list" id="repairList"></div>
+  <div class="add-row">
+    <button class="btn" id="addRepair">+ Behoben-Eintrag hinzufügen</button>
+  </div>
+
+  <div class="section-head">
+    <h2>7. Fotos &amp; Nachweise</h2>
+    <span class="sub">Nur auf diesem iPad, für die Dauer der Kontrolle</span>
+  </div>
+  <div class="pc-card">
+    <div class="photo-grid" id="photoGrid"></div>
+    <div class="add-row">
+      <label class="btn" for="photoInput">+ Foto hinzufügen</label>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label for="measurements">Messwerte (falls erhoben)</label>
+      <input type="text" id="measurements" placeholder="z. B. Temperatur 24 °C, Luftfeuchte 45 %">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label for="ticketRefs">Verweise auf Tickets/Störungsmeldungen</label>
+      <input type="text" id="ticketRefs" placeholder="z. B. Ticket #1234">
+    </div>
+    <span class="hint-text" style="margin-top:8px;">Fotos sollten keine Passwörter, Zugangsdaten oder unnötig sensible Informationen zeigen.</span>
+  </div>
+
+  <div class="general-note">
+    <h2>Allgemeine Notiz</h2>
+    <span class="sub">Gesamteindruck, Absprachen mit der Lehrkraft oder mit Herrn Rosenau, offene Punkte</span>
+    <textarea id="generalNote" placeholder="z. B. Raum insgesamt in gutem Zustand, Lehrkraft wünscht sich zusätzliche Kopfhörer, Rückmeldung zur Kundenzufriedenheit eingeholt …"></textarea>
+  </div>
+
+  <div class="section-head">
+    <h2>8. Abschluss &amp; Freigabe</h2>
+    <span class="sub">Gesamtbewertung, Risiken, nächste Schritte</span>
+  </div>
+  <div class="pc-card">
+    <div class="field">
+      <label for="overallRating">Gesamtbewertung des Raumes</label>
+      <select id="overallRating">
+        <option value="">– bitte wählen –</option>
+        <option value="Gut, ohne Einschränkungen nutzbar">Gut, ohne Einschränkungen nutzbar</option>
+        <option value="Mit Einschränkungen nutzbar">Mit Einschränkungen nutzbar</option>
+        <option value="Nicht nutzbar">Nicht nutzbar</option>
+      </select>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label for="risks">Festgestellte Risiken</label>
+      <textarea id="risks" rows="2" placeholder="z. B. Stolpergefahr durch lose Kabel an PC 4"></textarea>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label for="followUp">Empfohlene Folgemaßnahmen</label>
+      <textarea id="followUp" rows="2" placeholder="z. B. Kabelkanal nachrüsten, Ersatzmaus bestellen"></textarea>
+    </div>
+    <div class="meta-grid" style="margin-top:10px;">
+      <div class="field">
+        <label for="nextInspection">Nächste Inspektion</label>
+        <input type="date" id="nextInspection">
+      </div>
+      <div class="field">
+        <label for="signOffName">Name der prüfenden Person</label>
+        <input type="text" id="signOffName" placeholder="Name (ersetzt Unterschrift)">
+      </div>
+      <div class="field">
+        <label for="acknowledgedBy">Kenntnisnahme Raumverantwortliche:r</label>
+        <input type="text" id="acknowledgedBy" placeholder="Name der Lehrkraft (optional)">
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="export-bar">
+  <div class="row">
+    <button class="btn primary" id="saveBtn">Speichern</button>
+    <button class="btn" id="downloadBtn">Als Datei herunterladen</button>
+    <button class="btn" id="exportBtn">Als Text kopieren</button>
+    <span class="toast mono" id="toast">Kopiert</span>
+    <span class="toast save-toast mono" id="saveToast">Gespeichert</span>
+  </div>
+  <span class="hint-text" id="saveStatusHint">Noch nicht gespeichert.</span>
+  <span class="hint-text">Für ein PDF: Link oben in Safari/Chrome öffnen, dann Teilen → Drucken → „PDF erstellen“. Fotos nur für diese Sitzung, nicht in Speichern/Download enthalten.</span>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var ITEMS = [
+    "Monitor", "Gehäuse/Kabel", "Tastatur", "Maus",
+    "Netzwerk/LAN", "Login/Anmeldung", "USB-Anschlüsse", "Audio/Kopfhörer"
+  ];
+  var ROOM_ITEMS = [
+    "Lehrer-PC", "Beamer/Display", "Drucker", "WLAN/Internet",
+    "Switch/Netzwerkschrank", "Steckdosen/Kabel", "Tafel/Whiteboard", "Mobiliar (Tische/Stühle)"
+  ];
+  var CLIMATE_ITEMS = [
+    "Raumtemperatur", "Luftfeuchtigkeit", "Klimaanlage/Lüftung",
+    "Luftzirkulation/Lüftungswege", "Staub/Feuchtigkeit/Wasserspuren", "Sauberkeit/Zustand des Raumes"
+  ];
+  var SECURITY_ITEMS = [
+    "Tür/Schloss/Zugangskontrolle", "Berechtigungen/Schlüsselverwaltung", "Unbefugte/fremde Geräte",
+    "Brandschutz/Brandmeldeeinrichtungen", "Flucht-/Zugangswege frei", "Lagerung von Materialien",
+    "Hinweise auf unbefugten Zutritt"
+  ];
+  var POWER_ITEMS = [
+    "Steckdosen/Stromleisten", "Kabelführung", "Überlastung/lose Verbindungen",
+    "USV-Statusanzeige", "Schäden/Stolpergefahren", "Erdung/Stromversorgung (Sichtprüfung)"
+  ];
+  var ISSUE_STATUSES = ["offen", "in Bearbeitung", "erledigt"];
+  var STORE_KEY = "pcraum_checkliste_v4";
+  var HISTORY_KEY = "pcraum_history_v1";
+  var STATES = ["offen", "ok", "fault"];
+
+  function makeItems(labels) {
+    return labels.map(function (label) { return { label: label, state: "offen", note: "" }; });
+  }
+
+  function newIssue() {
+    return { description: "", position: "", priority: "Mittel", action: "", owner: "", dueDate: "", status: "offen" };
+  }
+
+  function defaultState(n) {
+    var pcs = [];
+    for (var i = 1; i <= n; i++) {
+      pcs.push({ name: "PC " + i, items: makeItems(ITEMS) });
+    }
+    return {
+      room: "E66",
+      date: todayIso(),
+      time: nowHm(),
+      inspector: "",
+      generalNote: "",
+      extraPcItemLabels: [],
+      roomEquipment: { items: makeItems(ROOM_ITEMS) },
+      climate: { items: makeItems(CLIMATE_ITEMS) },
+      security: { items: makeItems(SECURITY_ITEMS) },
+      power: { items: makeItems(POWER_ITEMS) },
+      issues: [],
+      repairs: [],
+      evidence: { measurements: "", ticketRefs: "" },
+      closing: { rating: "", risks: "", followUp: "", nextInspection: "", signOffName: "", acknowledgedBy: "" },
+      pcs: pcs
+    };
+  }
+
+  function todayIso() {
+    var d = new Date();
+    var tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0, 10);
+  }
+
+  function nowHm() {
+    var d = new Date();
+    var h = String(d.getHours()).padStart(2, "0");
+    var m = String(d.getMinutes()).padStart(2, "0");
+    return h + ":" + m;
+  }
+
+  function ensureItemFields(items) {
+    items.forEach(function (it) {
+      if (typeof it.note !== "string") it.note = "";
+      if (STATES.indexOf(it.state) === -1) it.state = "offen";
+    });
+  }
+
+  function ensureSection(parsed, key, labels) {
+    if (!parsed[key] || !Array.isArray(parsed[key].items)) {
+      parsed[key] = { items: makeItems(labels) };
+    }
+    ensureItemFields(parsed[key].items);
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return defaultState(15);
+      var parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.pcs)) return defaultState(15);
+
+      ensureSection(parsed, "roomEquipment", ROOM_ITEMS);
+      ensureSection(parsed, "climate", CLIMATE_ITEMS);
+      ensureSection(parsed, "security", SECURITY_ITEMS);
+      ensureSection(parsed, "power", POWER_ITEMS);
+      parsed.pcs.forEach(function (pc) { ensureItemFields(pc.items || []); });
+
+      if (typeof parsed.generalNote !== "string") parsed.generalNote = "";
+      if (typeof parsed.time !== "string") parsed.time = nowHm();
+      if (!Array.isArray(parsed.extraPcItemLabels)) parsed.extraPcItemLabels = [];
+      if (!Array.isArray(parsed.issues)) parsed.issues = [];
+      parsed.issues.forEach(function (iss) {
+        var d = newIssue();
+        Object.keys(d).forEach(function (k) { if (typeof iss[k] === "undefined") iss[k] = d[k]; });
+        if (ISSUE_STATUSES.indexOf(iss.status) === -1) iss.status = "offen";
+      });
+      if (!Array.isArray(parsed.repairs)) parsed.repairs = [];
+      parsed.repairs.forEach(function (rep) {
+        if (typeof rep.target !== "string") rep.target = "";
+        if (typeof rep.description !== "string") rep.description = "";
+      });
+      if (!parsed.evidence || typeof parsed.evidence !== "object") parsed.evidence = {};
+      if (typeof parsed.evidence.measurements !== "string") parsed.evidence.measurements = "";
+      if (typeof parsed.evidence.ticketRefs !== "string") parsed.evidence.ticketRefs = "";
+      if (!parsed.closing || typeof parsed.closing !== "object") parsed.closing = {};
+      ["rating", "risks", "followUp", "nextInspection", "signOffName", "acknowledgedBy"].forEach(function (k) {
+        if (typeof parsed.closing[k] !== "string") parsed.closing[k] = "";
+      });
+
+      return parsed;
+    } catch (e) {
+      return defaultState(15);
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    } catch (e) { /* ignore - private mode etc. */ }
+    unsavedChanges = true;
+    updateSaveStatusHint();
+  }
+
+  function loadHistory() {
+    try {
+      var raw = localStorage.getItem(HISTORY_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveHistory(arr) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
+    } catch (e) { /* ignore - private mode / storage full */ }
+  }
+
+  var history = loadHistory();
+  var currentHistoryId = null; // set once this protocol has been saved at least once
+  var unsavedChanges = false;
+
+  var state = load();
+
+  // Photos are session-only: too large/volatile for localStorage, and specific to this device.
+  var photos = [];
+
+  // Only one note panel is open across the whole page at a time.
+  // { scope: string, pcIndex: number|null, itemIndex: number }
+  var activeNote = null;
+
+  function isActive(scope, pcIndex, itemIndex) {
+    return !!activeNote && activeNote.scope === scope && activeNote.pcIndex === pcIndex && activeNote.itemIndex === itemIndex;
+  }
+
+  var roomEl = document.getElementById("room");
+  var dateEl = document.getElementById("date");
+  var timeEl = document.getElementById("time");
+  var inspectorEl = document.getElementById("inspector");
+  var pcListEl = document.getElementById("pcList");
+  var roomListEl = document.getElementById("roomList");
+  var climateListEl = document.getElementById("climateList");
+  var securityListEl = document.getElementById("securityList");
+  var powerListEl = document.getElementById("powerList");
+  var issueListEl = document.getElementById("issueList");
+  var repairListEl = document.getElementById("repairList");
+  var photoGridEl = document.getElementById("photoGrid");
+  var generalNoteEl = document.getElementById("generalNote");
+  var addItemAllInput = document.getElementById("addItemAllInput");
+  var addItemAllBtn = document.getElementById("addItemAllBtn");
+  var measurementsEl = document.getElementById("measurements");
+  var ticketRefsEl = document.getElementById("ticketRefs");
+  var overallRatingEl = document.getElementById("overallRating");
+  var risksEl = document.getElementById("risks");
+  var followUpEl = document.getElementById("followUp");
+  var nextInspectionEl = document.getElementById("nextInspection");
+  var signOffNameEl = document.getElementById("signOffName");
+  var acknowledgedByEl = document.getElementById("acknowledgedBy");
+
+  function fillMetaFields() {
+    roomEl.value = state.room;
+    dateEl.value = state.date;
+    timeEl.value = state.time;
+    inspectorEl.value = state.inspector;
+    generalNoteEl.value = state.generalNote;
+    measurementsEl.value = state.evidence.measurements;
+    ticketRefsEl.value = state.evidence.ticketRefs;
+    overallRatingEl.value = state.closing.rating;
+    risksEl.value = state.closing.risks;
+    followUpEl.value = state.closing.followUp;
+    nextInspectionEl.value = state.closing.nextInspection;
+    signOffNameEl.value = state.closing.signOffName;
+    acknowledgedByEl.value = state.closing.acknowledgedBy;
+  }
+  fillMetaFields();
+
+  roomEl.addEventListener("change", function () { state.room = roomEl.value; save(); });
+  dateEl.addEventListener("change", function () { state.date = dateEl.value; save(); });
+  timeEl.addEventListener("change", function () { state.time = timeEl.value; save(); });
+  inspectorEl.addEventListener("input", function () { state.inspector = inspectorEl.value; save(); });
+  generalNoteEl.addEventListener("input", function () { state.generalNote = generalNoteEl.value; save(); });
+  measurementsEl.addEventListener("input", function () { state.evidence.measurements = measurementsEl.value; save(); });
+  ticketRefsEl.addEventListener("input", function () { state.evidence.ticketRefs = ticketRefsEl.value; save(); });
+  overallRatingEl.addEventListener("change", function () { state.closing.rating = overallRatingEl.value; save(); });
+  risksEl.addEventListener("input", function () { state.closing.risks = risksEl.value; save(); });
+  followUpEl.addEventListener("input", function () { state.closing.followUp = followUpEl.value; save(); });
+  nextInspectionEl.addEventListener("change", function () { state.closing.nextInspection = nextInspectionEl.value; save(); });
+  signOffNameEl.addEventListener("input", function () { state.closing.signOffName = signOffNameEl.value; save(); });
+  acknowledgedByEl.addEventListener("input", function () { state.closing.acknowledgedBy = acknowledgedByEl.value; save(); });
+
+  function cycle(s) {
+    var idx = STATES.indexOf(s);
+    return STATES[(idx + 1) % STATES.length];
+  }
+
+  // Builds one card: a status dot + header, a chip grid, and (if one of its chips holds the
+  // single page-wide active note) a note panel underneath it.
+  function buildCard(opts) {
+    var items = opts.items;
+    var hasFault = items.some(function (it) { return it.state === "fault"; });
+    var allOk = items.length > 0 && items.every(function (it) { return it.state === "ok"; });
+
+    var card = document.createElement("div");
+    card.className = "pc-card" + (hasFault ? " has-fault" : "");
+
+    var head = document.createElement("div");
+    head.className = "pc-head";
+    var dot = document.createElement("div");
+    dot.className = "pc-status-dot" + (hasFault ? " fault" : (allOk ? " ok" : ""));
+    head.appendChild(dot);
+    head.appendChild(opts.headerEl);
+    card.appendChild(head);
+
+    var grid = document.createElement("div");
+    grid.className = "chip-grid";
+    var activeItem = null;
+
+    items.forEach(function (it, itemIndex) {
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.id = opts.chipIdPrefix + "-" + itemIndex;
+      chip.setAttribute("data-state", it.state);
+      chip.innerHTML = '<span class="mark">' + (it.state === "ok" ? "✓" : it.state === "fault" ? "!" : "") + '</span><span class="label">' + it.label + '</span>';
+      chip.addEventListener("click", function () {
+        it.state = cycle(it.state);
+        if (it.state === "fault") {
+          activeNote = { scope: opts.scope, pcIndex: opts.pcIndex, itemIndex: itemIndex };
+        } else if (isActive(opts.scope, opts.pcIndex, itemIndex)) {
+          activeNote = null;
+        }
+        save();
+        opts.rerender();
+      });
+      var removeItemBtn = document.createElement("button");
+      removeItemBtn.type = "button";
+      removeItemBtn.className = "chip-remove";
+      removeItemBtn.setAttribute("aria-label", "Punkt entfernen: " + it.label);
+      removeItemBtn.textContent = "×";
+      removeItemBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        items.splice(itemIndex, 1);
+        if (activeNote && activeNote.scope === opts.scope && activeNote.pcIndex === opts.pcIndex) activeNote = null;
+        save();
+        opts.rerender();
+      });
+      chip.appendChild(removeItemBtn);
+
+      grid.appendChild(chip);
+
+      if (it.state === "fault") {
+        var active = isActive(opts.scope, opts.pcIndex, itemIndex);
+        var toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "note-toggle" + (active ? " active" : "");
+        toggle.setAttribute("aria-label", "Notiz zu " + it.label);
+        toggle.textContent = "✎";
+        if (it.note && !active) {
+          var dotMark = document.createElement("span");
+          dotMark.className = "has-text-dot";
+          toggle.appendChild(dotMark);
+        }
+        toggle.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          if (isActive(opts.scope, opts.pcIndex, itemIndex)) {
+            activeNote = null;
+          } else {
+            activeNote = { scope: opts.scope, pcIndex: opts.pcIndex, itemIndex: itemIndex };
+          }
+          opts.rerender();
+        });
+        chip.appendChild(toggle);
+        if (active) activeItem = { item: it, index: itemIndex };
+      }
+    });
+    card.appendChild(grid);
+
+    if (activeItem) {
+      var noteWrap = document.createElement("div");
+      noteWrap.className = "item-note";
+      var noteLabel = document.createElement("div");
+      noteLabel.className = "item-note-label";
+      noteLabel.textContent = "Notiz – " + activeItem.item.label;
+      noteWrap.appendChild(noteLabel);
+      var textarea = document.createElement("textarea");
+      textarea.id = opts.chipIdPrefix + "-note-" + activeItem.index;
+      textarea.placeholder = "Was ist das Problem, was wurde unternommen? …";
+      textarea.value = activeItem.item.note;
+      textarea.addEventListener("input", function () {
+        activeItem.item.note = textarea.value;
+        save();
+      });
+      noteWrap.appendChild(textarea);
+      card.appendChild(noteWrap);
+    }
+
+    return card;
+  }
+
+  // Shared renderer for the single-card-per-room sections (room equipment, climate, security, power).
+  function renderEquipmentSection(listEl, sectionObj, scopeKey, headerLabel, addPlaceholder) {
+    listEl.innerHTML = "";
+    var label = document.createElement("span");
+    label.className = "pc-name mono";
+    label.style.width = "auto";
+    label.textContent = headerLabel;
+
+    var card = buildCard({
+      items: sectionObj.items,
+      scope: scopeKey,
+      pcIndex: null,
+      headerEl: label,
+      chipIdPrefix: scopeKey,
+      rerender: function () { renderEquipmentSection(listEl, sectionObj, scopeKey, headerLabel, addPlaceholder); }
+    });
+
+    var addWrap = document.createElement("div");
+    addWrap.className = "inline-add";
+    var addInput = document.createElement("input");
+    addInput.type = "text";
+    addInput.placeholder = addPlaceholder;
+    var addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.textContent = "+ hinzufügen";
+    addBtn.addEventListener("click", function () {
+      var lbl = addInput.value.trim();
+      if (!lbl) return;
+      sectionObj.items.push({ label: lbl, state: "offen", note: "" });
+      addInput.value = "";
+      save();
+      renderEquipmentSection(listEl, sectionObj, scopeKey, headerLabel, addPlaceholder);
+    });
+    addWrap.appendChild(addInput);
+    addWrap.appendChild(addBtn);
+    card.appendChild(addWrap);
+
+    listEl.appendChild(card);
+  }
+
+  function renderRoomEquipment() { renderEquipmentSection(roomListEl, state.roomEquipment, "room", "Raum allgemein", "Eigener Punkt, z. B. Verdunklung/Jalousien"); }
+  function renderClimate() { renderEquipmentSection(climateListEl, state.climate, "climate", "Raumklima", "Eigener Punkt, z. B. Fensterdichtung"); }
+  function renderSecurity() { renderEquipmentSection(securityListEl, state.security, "security", "Sicherheit", "Eigener Punkt, z. B. Videoüberwachung"); }
+  function renderPower() { renderEquipmentSection(powerListEl, state.power, "power", "Strom/Verkabelung", "Eigener Punkt, z. B. Mehrfachsteckdose"); }
+
+  function statusClass(s) {
+    return s === "erledigt" ? "st-ok" : (s === "in Bearbeitung" ? "st-open" : "st-fault");
+  }
+
+  function makeField(labelText, el, spanAll) {
+    var wrap = document.createElement("div");
+    wrap.className = "field" + (spanAll ? " span-all" : "");
+    var lab = document.createElement("label");
+    lab.textContent = labelText;
+    wrap.appendChild(lab);
+    wrap.appendChild(el);
+    return wrap;
+  }
+
+  function renderIssues() {
+    issueListEl.innerHTML = "";
+    state.issues.forEach(function (issue, idx) {
+      var card = document.createElement("div");
+      card.className = "pc-card";
+
+      var head = document.createElement("div");
+      head.className = "pc-head";
+      var dot = document.createElement("div");
+      dot.className = "pc-status-dot" + (issue.status === "erledigt" ? " ok" : (issue.status === "offen" ? " fault" : ""));
+      head.appendChild(dot);
+      var title = document.createElement("span");
+      title.className = "pc-name mono";
+      title.style.width = "auto";
+      title.textContent = "Mangel " + (idx + 1);
+      head.appendChild(title);
+      var removeBtn = document.createElement("button");
+      removeBtn.className = "pc-remove";
+      removeBtn.setAttribute("aria-label", "Mangel entfernen");
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", function () {
+        state.issues.splice(idx, 1);
+        save();
+        renderIssues();
+      });
+      head.appendChild(removeBtn);
+      card.appendChild(head);
+
+      var grid = document.createElement("div");
+      grid.className = "issue-grid";
+
+      var descTa = document.createElement("textarea");
+      descTa.rows = 2;
+      descTa.placeholder = "Was ist das Problem?";
+      descTa.value = issue.description;
+      descTa.addEventListener("input", function () { issue.description = descTa.value; save(); });
+      grid.appendChild(makeField("Beschreibung", descTa, true));
+
+      var posInput = document.createElement("input");
+      posInput.type = "text";
+      posInput.value = issue.position;
+      posInput.placeholder = "z. B. PC 7 / Fensterseite";
+      posInput.addEventListener("input", function () { issue.position = posInput.value; save(); });
+      grid.appendChild(makeField("Position", posInput));
+
+      var prioSel = document.createElement("select");
+      ["Niedrig", "Mittel", "Hoch"].forEach(function (p) {
+        var o = document.createElement("option");
+        o.value = p; o.textContent = p;
+        if (p === issue.priority) o.selected = true;
+        prioSel.appendChild(o);
+      });
+      prioSel.addEventListener("change", function () { issue.priority = prioSel.value; save(); });
+      grid.appendChild(makeField("Dringlichkeit", prioSel));
+
+      var ownerInput = document.createElement("input");
+      ownerInput.type = "text";
+      ownerInput.value = issue.owner;
+      ownerInput.placeholder = "z. B. Herr Rosenau";
+      ownerInput.addEventListener("input", function () { issue.owner = ownerInput.value; save(); });
+      grid.appendChild(makeField("Zuständig", ownerInput));
+
+      var dueInput = document.createElement("input");
+      dueInput.type = "date";
+      dueInput.value = issue.dueDate;
+      dueInput.addEventListener("change", function () { issue.dueDate = dueInput.value; save(); });
+      grid.appendChild(makeField("Termin", dueInput));
+
+      var actionTa = document.createElement("textarea");
+      actionTa.rows = 2;
+      actionTa.placeholder = "Erforderliche Maßnahme";
+      actionTa.value = issue.action;
+      actionTa.addEventListener("input", function () { issue.action = actionTa.value; save(); });
+      grid.appendChild(makeField("Erforderliche Maßnahme", actionTa, true));
+
+      card.appendChild(grid);
+
+      var statusRow = document.createElement("div");
+      statusRow.className = "status-row";
+      var statusLabel = document.createElement("span");
+      statusLabel.className = "status-row-label";
+      statusLabel.textContent = "Status:";
+      statusRow.appendChild(statusLabel);
+      var statusBtn = document.createElement("button");
+      statusBtn.type = "button";
+      statusBtn.className = "status-chip " + statusClass(issue.status);
+      statusBtn.textContent = issue.status;
+      statusBtn.addEventListener("click", function () {
+        issue.status = ISSUE_STATUSES[(ISSUE_STATUSES.indexOf(issue.status) + 1) % ISSUE_STATUSES.length];
+        save();
+        renderIssues();
+      });
+      statusRow.appendChild(statusBtn);
+      card.appendChild(statusRow);
+
+      issueListEl.appendChild(card);
+    });
+  }
+
+  document.getElementById("addIssue").addEventListener("click", function () {
+    state.issues.push(newIssue());
+    save();
+    renderIssues();
+  });
+
+  function buildTargetOptions() {
+    var opts = ["– PC/Bereich wählen –"];
+    state.pcs.forEach(function (pc) { opts.push(pc.name); });
+    opts.push("Raumausstattung", "Raumklima", "Sicherheit", "Strom/Verkabelung", "Sonstiges");
+    return opts;
+  }
+
+  function renderRepairs() {
+    repairListEl.innerHTML = "";
+    var targetOptions = buildTargetOptions();
+
+    state.repairs.forEach(function (rep, idx) {
+      var card = document.createElement("div");
+      card.className = "pc-card";
+
+      var head = document.createElement("div");
+      head.className = "pc-head";
+      var dot = document.createElement("div");
+      dot.className = "pc-status-dot ok";
+      head.appendChild(dot);
+      var title = document.createElement("span");
+      title.className = "pc-name mono";
+      title.style.width = "auto";
+      title.style.borderBottom = "none";
+      title.textContent = "Eintrag " + (idx + 1);
+      head.appendChild(title);
+      var removeBtn = document.createElement("button");
+      removeBtn.className = "pc-remove";
+      removeBtn.setAttribute("aria-label", "Eintrag entfernen");
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", function () {
+        state.repairs.splice(idx, 1);
+        save();
+        renderRepairs();
+      });
+      head.appendChild(removeBtn);
+      card.appendChild(head);
+
+      var grid = document.createElement("div");
+      grid.className = "issue-grid";
+
+      var sel = document.createElement("select");
+      var found = false;
+      targetOptions.forEach(function (opt) {
+        var o = document.createElement("option");
+        o.value = opt;
+        o.textContent = opt;
+        if (opt === rep.target) { o.selected = true; found = true; }
+        sel.appendChild(o);
+      });
+      if (!found && rep.target) {
+        var custom = document.createElement("option");
+        custom.value = rep.target;
+        custom.textContent = rep.target;
+        custom.selected = true;
+        sel.insertBefore(custom, sel.firstChild.nextSibling);
+      }
+      sel.addEventListener("change", function () { rep.target = sel.value; save(); });
+      grid.appendChild(makeField("PC / Bereich", sel));
+
+      var doneTa = document.createElement("textarea");
+      doneTa.rows = 2;
+      doneTa.placeholder = "Was wurde gemacht? z. B. Maus getauscht, Kabel neu gesteckt";
+      doneTa.value = rep.description;
+      doneTa.addEventListener("input", function () { rep.description = doneTa.value; save(); });
+      grid.appendChild(makeField("Was wurde behoben", doneTa, true));
+
+      card.appendChild(grid);
+      repairListEl.appendChild(card);
+    });
+  }
+
+  document.getElementById("addRepair").addEventListener("click", function () {
+    state.repairs.push({ target: "", description: "" });
+    save();
+    renderRepairs();
+  });
+
+  function renderPhotos() {
+    photoGridEl.innerHTML = "";
+    photos.forEach(function (p, idx) {
+      var thumb = document.createElement("div");
+      thumb.className = "photo-thumb";
+      var img = document.createElement("img");
+      img.src = p.url;
+      img.alt = p.name;
+      thumb.appendChild(img);
+      var rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "photo-remove";
+      rm.setAttribute("aria-label", "Foto entfernen");
+      rm.textContent = "×";
+      rm.addEventListener("click", function () {
+        try { URL.revokeObjectURL(p.url); } catch (e) { /* ignore */ }
+        photos.splice(idx, 1);
+        renderPhotos();
+      });
+      thumb.appendChild(rm);
+      photoGridEl.appendChild(thumb);
+    });
+  }
+
+  document.getElementById("photoInput").addEventListener("change", function (ev) {
+    Array.prototype.forEach.call(ev.target.files || [], function (file) {
+      try {
+        var url = URL.createObjectURL(file);
+        photos.push({ url: url, name: file.name });
+      } catch (e) { /* ignore */ }
+    });
+    ev.target.value = "";
+    renderPhotos();
+  });
+
+  var historyListEl = document.getElementById("historyList");
+  var saveStatusHintEl = document.getElementById("saveStatusHint");
+
+  function formatSavedAt(iso) {
+    try {
+      var d = new Date(iso);
+      var dd = String(d.getDate()).padStart(2, "0");
+      var mm = String(d.getMonth() + 1).padStart(2, "0");
+      var hh = String(d.getHours()).padStart(2, "0");
+      var min = String(d.getMinutes()).padStart(2, "0");
+      return dd + "." + mm + ", " + hh + ":" + min + " Uhr";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function updateSaveStatusHint() {
+    if (!saveStatusHintEl) return;
+    if (!currentHistoryId) {
+      saveStatusHintEl.textContent = "Noch nicht gespeichert – über „Speichern“ sichern, um es später wiederzufinden.";
+    } else if (unsavedChanges) {
+      saveStatusHintEl.textContent = "Ungesicherte Änderungen seit dem letzten Speichern.";
+    } else {
+      var entry = history.find(function (h) { return h.id === currentHistoryId; });
+      saveStatusHintEl.textContent = entry ? "Gespeichert am " + formatSavedAt(entry.savedAt) + "." : "Gespeichert.";
+    }
+  }
+
+  function snapshotData() {
+    // Deep-clone everything except session-only photos.
+    return JSON.parse(JSON.stringify(state));
+  }
+
+  function renderHistory() {
+    historyListEl.innerHTML = "";
+    if (!history.length) {
+      var empty = document.createElement("div");
+      empty.className = "history-empty";
+      empty.textContent = "Noch keine gespeicherten Protokolle auf diesem iPad.";
+      historyListEl.appendChild(empty);
+      return;
+    }
+    var sorted = history.slice().sort(function (a, b) { return (b.savedAt || "").localeCompare(a.savedAt || ""); });
+    sorted.forEach(function (entry) {
+      var card = document.createElement("div");
+      card.className = "history-card" + (entry.id === currentHistoryId ? " current" : "");
+
+      var info = document.createElement("div");
+      info.className = "info";
+      var main = document.createElement("div");
+      main.className = "main";
+      main.textContent = "Raum " + (entry.room || "–") + " · " + (entry.date || "–") + (entry.time ? " " + entry.time : "");
+      var sub2 = document.createElement("div");
+      sub2.className = "sub2";
+      sub2.textContent = (entry.inspector ? entry.inspector + " · " : "") + "gespeichert " + formatSavedAt(entry.savedAt);
+      info.appendChild(main);
+      info.appendChild(sub2);
+      card.appendChild(info);
+
+      if (entry.id === currentHistoryId) {
+        var badge = document.createElement("span");
+        badge.className = "history-badge";
+        badge.textContent = "Aktuell";
+        card.appendChild(badge);
+      }
+
+      var actions = document.createElement("div");
+      actions.className = "actions";
+
+      var loadBtn = document.createElement("button");
+      loadBtn.type = "button";
+      loadBtn.className = "load";
+      loadBtn.textContent = "Laden";
+      loadBtn.addEventListener("click", function () {
+        state = entry.data ? JSON.parse(JSON.stringify(entry.data)) : defaultState(15);
+        ensureLoadedState();
+        currentHistoryId = entry.id;
+        unsavedChanges = false;
+        activeNote = null;
+        fillMetaFields();
+        save();
+        render();
+      });
+      actions.appendChild(loadBtn);
+
+      var delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "del";
+      delBtn.textContent = "Löschen";
+      delBtn.addEventListener("click", function () {
+        history = history.filter(function (h) { return h.id !== entry.id; });
+        saveHistory(history);
+        if (currentHistoryId === entry.id) { currentHistoryId = null; unsavedChanges = true; }
+        renderHistory();
+        updateSaveStatusHint();
+      });
+      actions.appendChild(delBtn);
+
+      card.appendChild(actions);
+      historyListEl.appendChild(card);
+    });
+  }
+
+  function ensureLoadedState() {
+    // Re-run the same normalization load() applies, for data coming from history/import.
+    ensureSection(state, "roomEquipment", ROOM_ITEMS);
+    ensureSection(state, "climate", CLIMATE_ITEMS);
+    ensureSection(state, "security", SECURITY_ITEMS);
+    ensureSection(state, "power", POWER_ITEMS);
+    if (!Array.isArray(state.pcs)) state.pcs = [];
+    state.pcs.forEach(function (pc) { ensureItemFields(pc.items || []); });
+    if (typeof state.generalNote !== "string") state.generalNote = "";
+    if (typeof state.time !== "string") state.time = nowHm();
+    if (!Array.isArray(state.extraPcItemLabels)) state.extraPcItemLabels = [];
+    if (!Array.isArray(state.issues)) state.issues = [];
+    if (!Array.isArray(state.repairs)) state.repairs = [];
+    if (!state.evidence || typeof state.evidence !== "object") state.evidence = { measurements: "", ticketRefs: "" };
+    if (!state.closing || typeof state.closing !== "object") {
+      state.closing = { rating: "", risks: "", followUp: "", nextInspection: "", signOffName: "", acknowledgedBy: "" };
+    }
+  }
+
+  document.getElementById("saveBtn").addEventListener("click", function () {
+    var now = new Date().toISOString();
+    if (currentHistoryId) {
+      var existing = history.find(function (h) { return h.id === currentHistoryId; });
+      if (existing) {
+        existing.room = state.room;
+        existing.date = state.date;
+        existing.time = state.time;
+        existing.inspector = state.inspector;
+        existing.savedAt = now;
+        existing.data = snapshotData();
+      } else {
+        currentHistoryId = null;
+      }
+    }
+    if (!currentHistoryId) {
+      currentHistoryId = "h" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+      history.push({
+        id: currentHistoryId,
+        room: state.room,
+        date: state.date,
+        time: state.time,
+        inspector: state.inspector,
+        savedAt: now,
+        data: snapshotData()
+      });
+    }
+    saveHistory(history);
+    unsavedChanges = false;
+    renderHistory();
+    updateSaveStatusHint();
+
+    var st = document.getElementById("saveToast");
+    st.classList.add("show");
+    setTimeout(function () { st.classList.remove("show"); }, 1600);
+  });
+
+  document.getElementById("newFromHistory").addEventListener("click", function () {
+    var count = state.pcs.length || 15;
+    state = defaultState(count);
+    currentHistoryId = null;
+    unsavedChanges = false;
+    activeNote = null;
+    photos.forEach(function (p) { try { URL.revokeObjectURL(p.url); } catch (e) {} });
+    photos = [];
+    fillMetaFields();
+    save();
+    unsavedChanges = false;
+    updateSaveStatusHint();
+    render();
+    renderPhotos();
+  });
+
+  document.getElementById("downloadBtn").addEventListener("click", function () {
+    (async function () {
+      var downloads = null;
+      try { downloads = await claude.use("downloads"); } catch (e) { downloads = null; }
+      var payload = JSON.stringify({ savedAt: new Date().toISOString(), protocol: snapshotData() }, null, 2);
+      var safeRoom = (state.room || "Raum").replace(/[^a-zA-Z0-9äöüÄÖÜß_-]+/g, "_");
+      var filename = "rauminspektion_" + safeRoom + "_" + (state.date || "") + ".json";
+
+      if (!downloads) {
+        // No downloads capability in this view: fall back to copying the JSON as text.
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          try {
+            await navigator.clipboard.writeText(payload);
+            alertHint("Download hier nicht möglich – JSON wurde stattdessen in die Zwischenablage kopiert.");
+          } catch (e) {
+            alertHint("Download und Kopieren sind hier nicht möglich.");
+          }
+        } else {
+          alertHint("Download ist in dieser Ansicht nicht möglich.");
+        }
+        return;
+      }
+
+      try {
+        await downloads.save({ filename: filename, data: payload });
+      } catch (e) {
+        if (e && e.code === "declined") return;
+        alertHint("Herunterladen hat nicht geklappt – bitte „Als Text kopieren“ nutzen.");
+      }
+    })();
+  });
+
+  function alertHint(msg) {
+    if (saveStatusHintEl) {
+      saveStatusHintEl.textContent = msg;
+      setTimeout(function () { updateSaveStatusHint(); }, 3200);
+    }
+  }
+
+  function render() {
+    renderHistory();
+    updateSaveStatusHint();
+    renderRoomEquipment();
+    renderClimate();
+    renderSecurity();
+    renderPower();
+    renderIssues();
+    renderRepairs();
+
+    pcListEl.innerHTML = "";
+    var okCount = 0, faultCount = 0, openCount = 0;
+
+    state.pcs.forEach(function (pc, pcIndex) {
+      var hasFault = pc.items.some(function (it) { return it.state === "fault"; });
+      var hasOpen = pc.items.some(function (it) { return it.state === "offen"; });
+
+      var nameInput = document.createElement("input");
+      nameInput.className = "pc-name mono";
+      nameInput.type = "text";
+      nameInput.value = pc.name;
+      nameInput.setAttribute("id", "pcname-" + pcIndex);
+      nameInput.addEventListener("input", function () {
+        pc.name = nameInput.value;
+        save();
+      });
+
+      var removeBtn = document.createElement("button");
+      removeBtn.className = "pc-remove";
+      removeBtn.setAttribute("aria-label", "PC entfernen");
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", function () {
+        state.pcs.splice(pcIndex, 1);
+        if (activeNote && activeNote.scope === "pc" && activeNote.pcIndex === pcIndex) activeNote = null;
+        save();
+        render();
+      });
+
+      var headerHolder = document.createElement("span");
+      headerHolder.style.display = "contents";
+      headerHolder.appendChild(nameInput);
+      headerHolder.appendChild(removeBtn);
+
+      var card = buildCard({
+        items: pc.items,
+        scope: "pc",
+        pcIndex: pcIndex,
+        headerEl: headerHolder,
+        chipIdPrefix: "chip-" + pcIndex,
+        rerender: render
+      });
+
+      pcListEl.appendChild(card);
+
+      if (hasFault) faultCount++;
+      else if (hasOpen) openCount++;
+      else okCount++;
+    });
+
+    document.getElementById("statTotal").textContent = state.pcs.length;
+    document.getElementById("statOk").textContent = okCount;
+    document.getElementById("statFault").textContent = faultCount;
+    document.getElementById("statOpen").textContent = openCount;
+  }
+
+  document.getElementById("addPc").addEventListener("click", function () {
+    var n = state.pcs.length + 1;
+    state.pcs.push({ name: "PC " + n, items: makeItems(ITEMS.concat(state.extraPcItemLabels)) });
+    save();
+    render();
+  });
+
+  addItemAllBtn.addEventListener("click", function () {
+    var label = addItemAllInput.value.trim();
+    if (!label) return;
+    state.extraPcItemLabels.push(label);
+    state.pcs.forEach(function (pc) {
+      var exists = pc.items.some(function (it) { return it.label === label; });
+      if (!exists) pc.items.push({ label: label, state: "offen", note: "" });
+    });
+    addItemAllInput.value = "";
+    save();
+    render();
+  });
+
+  document.getElementById("resetAll").addEventListener("click", function () {
+    var count = state.pcs.length || 15;
+    state = defaultState(count);
+    currentHistoryId = null;
+    activeNote = null;
+    photos.forEach(function (p) { try { URL.revokeObjectURL(p.url); } catch (e) {} });
+    photos = [];
+    fillMetaFields();
+    save();
+    render();
+    renderPhotos();
+  });
+
+  document.getElementById("exportBtn").addEventListener("click", function () {
+    var lines = [];
+    lines.push("Protokoll Rauminspektion – Raum " + (state.room || "–"));
+    lines.push("Datum: " + (state.date || "–") + " | Uhrzeit: " + (state.time || "–") + " | Kontrolliert von: " + (state.inspector || "–"));
+    lines.push("");
+
+    function sectionFaultLines(title, sectionObj) {
+      var faultyItems = sectionObj.items.filter(function (it) { return it.state === "fault"; });
+      var out = [title + ":"];
+      if (faultyItems.length) {
+        faultyItems.forEach(function (it) { out.push("- " + it.label + (it.note ? ": " + it.note : "")); });
+      } else {
+        out.push("- Keine Defekte festgestellt.");
+      }
+      out.push("");
+      return out;
+    }
+
+    lines = lines.concat(sectionFaultLines("1. Raumausstattung", state.roomEquipment));
+
+    var faulty = state.pcs.filter(function (pc) { return pc.items.some(function (it) { return it.state === "fault"; }); });
+    var openOnes = state.pcs.filter(function (pc) {
+      return !pc.items.some(function (it) { return it.state === "fault"; }) &&
+        pc.items.some(function (it) { return it.state === "offen"; });
+    });
+    var okOnes = state.pcs.filter(function (pc) { return pc.items.every(function (it) { return it.state === "ok"; }); });
+
+    lines.push("2. Einzelplätze – Zusammenfassung: " + state.pcs.length + " PCs geprüft – " + okOnes.length + " OK, " + faulty.length + " defekt, " + openOnes.length + " offen.");
+    if (faulty.length) {
+      faulty.forEach(function (pc) {
+        lines.push("- " + pc.name + ":");
+        pc.items.filter(function (it) { return it.state === "fault"; }).forEach(function (it) {
+          lines.push("    · " + it.label + (it.note ? " – " + it.note : ""));
+        });
+      });
+    }
+    if (openOnes.length) {
+      lines.push("Noch nicht vollständig geprüft: " + openOnes.map(function (pc) { return pc.name; }).join(", "));
+    }
+    lines.push("");
+
+    lines = lines.concat(sectionFaultLines("3. Raumklima & Umgebungsbedingungen", state.climate));
+    lines = lines.concat(sectionFaultLines("4. Sicherheit & Zutrittsschutz", state.security));
+    lines = lines.concat(sectionFaultLines("5. Stromversorgung & Verkabelung", state.power));
+
+    lines.push("6. Mängel & Maßnahmen:");
+    if (state.issues.length) {
+      state.issues.forEach(function (issue, idx) {
+        lines.push("- Mangel " + (idx + 1) + " [" + issue.status + "]: " + (issue.description || "–"));
+        if (issue.position) lines.push("    Position: " + issue.position);
+        lines.push("    Dringlichkeit: " + issue.priority);
+        if (issue.action) lines.push("    Maßnahme: " + issue.action);
+        if (issue.owner) lines.push("    Zuständig: " + issue.owner);
+        if (issue.dueDate) lines.push("    Termin: " + issue.dueDate);
+      });
+    } else {
+      lines.push("- Keine erfassten Mängel.");
+    }
+    lines.push("");
+
+    lines.push("Behoben / Reparaturen:");
+    if (state.repairs.length) {
+      state.repairs.forEach(function (rep) {
+        lines.push("- " + (rep.target || "–") + ": " + (rep.description || "–"));
+      });
+    } else {
+      lines.push("- Keine Einträge.");
+    }
+    lines.push("");
+
+    lines.push("7. Fotos & Nachweise:");
+    lines.push("- Fotos in dieser Sitzung: " + photos.length + (photos.length ? " (lokal auf dem iPad, nicht im Text enthalten)" : ""));
+    if (state.evidence.measurements) lines.push("- Messwerte: " + state.evidence.measurements);
+    if (state.evidence.ticketRefs) lines.push("- Ticket-/Störungsreferenzen: " + state.evidence.ticketRefs);
+    lines.push("");
+
+    if (state.generalNote && state.generalNote.trim()) {
+      lines.push("Allgemeine Notiz:");
+      lines.push(state.generalNote.trim());
+      lines.push("");
+    }
+
+    lines.push("8. Abschluss & Freigabe:");
+    lines.push("- Gesamtbewertung: " + (state.closing.rating || "–"));
+    if (state.closing.risks) lines.push("- Festgestellte Risiken: " + state.closing.risks);
+    if (state.closing.followUp) lines.push("- Empfohlene Folgemaßnahmen: " + state.closing.followUp);
+    lines.push("- Nächste Inspektion: " + (state.closing.nextInspection || "–"));
+    lines.push("- Geprüft von: " + (state.closing.signOffName || state.inspector || "–"));
+    if (state.closing.acknowledgedBy) lines.push("- Kenntnisnahme Raumverantwortliche:r: " + state.closing.acknowledgedBy);
+
+    var text = lines.join("\n");
+
+    function showToast() {
+      var t = document.getElementById("toast");
+      t.classList.add("show");
+      setTimeout(function () { t.classList.remove("show"); }, 1600);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showToast).catch(function () {
+        fallbackCopy(text, showToast);
+      });
+    } else {
+      fallbackCopy(text, showToast);
+    }
+  });
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); cb(); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+
+  render();
+})();
+</script>
+
+</body></html>
